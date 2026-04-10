@@ -1,0 +1,120 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String?
+  email     String?  @unique
+  createdAt DateTime @default(now())
+
+  // 🔗 Relations
+  products  Product[]
+  orders    Order[]
+  invoices  Invoice[]
+
+  @@index([email])
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  image       String?
+  createdAt   DateTime @default(now())
+
+  // 🔗 Owner
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 🔗 Orders
+  orders Order[]
+
+  @@index([userId])
+}
+
+model Order {
+  id            String   @id @default(uuid())
+  customerName  String
+  phone         String
+  address       String
+  city          String?
+
+  // 🔗 Product
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  status    OrderStatus @default(NEW)
+
+  // source: messenger / comment / dashboard
+  source    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 🔗 Owner
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  invoice Invoice?
+
+  @@index([userId])
+  @@index([productId])
+  @@index([status])
+}
+
+model Invoice {
+  id        String   @id @default(uuid())
+  orderId   String   @unique
+  logoUrl   String?
+  total     Float
+  createdAt DateTime @default(now())
+
+  // 🔗 Owner
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 🔗 Order
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELED
+}
+
+model ErrorLog {
+  id        String   @id @default(uuid())
+  message   String
+  stack     String?
+  source    String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model EventLog {
+  id        String   @id @default(uuid())
+  type      String
+  userId    String?
+  productId String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([productId])
+  @@index([type])
+}

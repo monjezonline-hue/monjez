@@ -4,14 +4,24 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "prebuild": "prisma generate",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
+    "prisma:check": "node scripts/check-prisma.cjs",
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@supabase/supabase-js": "^2.101.1",
+    "axios": "^1.14.0",
+    "googleapis": "^171.4.0",
     "next": "16.2.2",
+    "openai": "^6.33.0",
+    "prisma": "^5.22.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -21,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^50.42.0"
   }
 }
