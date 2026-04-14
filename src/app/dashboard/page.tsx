@@ -21,6 +21,18 @@ type OrderWithProduct = {
 
 const SALES_STATUSES: OrderStatus[] = ["CONFIRMED", "SHIPPED", "DELIVERED"];
 
+// ✅ قائمة بالطلبات الوهمية التي يجب استبعادها
+const FAKE_ORDER_PATTERNS = [
+  "[رسالة واردة]",
+  "[تعليق]",
+  "[MESSAGE]",
+  "[COMMENT]",
+];
+
+function isFakeOrder(customerName: string): boolean {
+  return FAKE_ORDER_PATTERNS.some(pattern => customerName === pattern);
+}
+
 function formatMoney(n: number) {
   return new Intl.NumberFormat("ar-EG", {
     maximumFractionDigits: 0,
@@ -182,18 +194,27 @@ function statusBadge(status: OrderStatus) {
 }
 
 export default async function DashboardPage() {
-  const orders = await prisma.order.findMany({
+  // ✅ جلب جميع الطلبات
+  const allOrders = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
     include: { product: true },
   });
 
-  const totalOrders = orders.length;
-  const newOrders = orders.filter((o: OrderWithProduct) => o.status === "NEW").length;
-  const totalSales = orders.reduce((sum: number, o: OrderWithProduct) => {
+  // ✅ فلترة الطلبات الحقيقية فقط
+  const realOrders = allOrders.filter(
+    (order) => !isFakeOrder(order.customerName)
+  );
+
+  const totalOrders = realOrders.length;
+  const newOrders = realOrders.filter((o: OrderWithProduct) => o.status === "NEW").length;
+  const totalSales = realOrders.reduce((sum: number, o: OrderWithProduct) => {
     if (!SALES_STATUSES.includes(o.status)) return sum;
     const p = o.product?.price;
     return sum + (typeof p === "number" ? p : 0);
   }, 0);
+
+  // ✅ إحصائية عدد الطلبات الوهمية (للتذكير فقط)
+  const fakeOrdersCount = allOrders.length - realOrders.length;
 
   return (
     <div className="min-h-screen bg-slate-50" dir="rtl">
@@ -237,13 +258,18 @@ export default async function DashboardPage() {
               إدارة الطلبات والحالات في مكان واحد
             </p>
           </div>
+          {fakeOrdersCount > 0 && (
+            <div className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-700 border border-amber-200">
+              ⚠️ {fakeOrdersCount} طلب وهمي (تم استبعادهم من الإحصائيات)
+            </div>
+          )}
         </div>
 
         <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             title="إجمالي الطلبات"
             value={totalOrders}
-            subtitle="كل السجلات في النظام"
+            subtitle="الطلبات الحقيقية فقط"
             accent="indigo"
             icon={
               <svg
@@ -287,7 +313,7 @@ export default async function DashboardPage() {
           <StatCard
             title="إجمالي المبيعات"
             value={`${formatMoney(totalSales)} ج.م`}
-            subtitle="مجموع أسعار المنتجات (مؤكد / شحن / تسليم)"
+            subtitle="من الطلبات المؤكدة / المشحونة / المسلمة"
             accent="emerald"
             icon={
               <svg
@@ -312,18 +338,35 @@ export default async function DashboardPage() {
           <div className="border-b border-slate-100 px-6 py-4">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">الطلبات</h3>
+                <h3 className="text-lg font-semibold text-slate-900">الطلبات الحقيقية</h3>
                 <p className="text-sm text-slate-500">
                   استخدم الأزرار لتعيين الحالة بسرعة
                 </p>
               </div>
-              <a
-                href="/api/orders?export=csv"
-                download
-                className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 transition"
-              >
-                📥 تصدير Excel
-              </a>
+              <div className="flex gap-2">
+                <a
+                  href="/api/orders?export=csv"
+                  download
+                  className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 transition"
+                >
+                  📥 تصدير Excel
+                </a>
+                {fakeOrdersCount > 0 && (
+                  <form action="/api/orders/cleanup" method="POST">
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-600 transition"
+                      onClick={(e) => {
+                        if (!confirm(`⚠️ هل أنت متأكد من حذف ${fakeOrdersCount} طلب وهمي؟\nهذه العملية لا يمكن التراجع عنها.`)) {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
+                      🗑️ حذف الطلبات الوهمية
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           </div>
 
@@ -341,6 +384,9 @@ export default async function DashboardPage() {
                     العنوان
                   </th>
                   <th className="px-4 py-3 font-semibold text-slate-600">
+                    المدينة
+                  </th>
+                  <th className="px-4 py-3 font-semibold text-slate-600">
                     المنتج
                   </th>
                   <th className="px-4 py-3 font-semibold text-slate-600">
@@ -352,17 +398,17 @@ export default async function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {orders.length === 0 ? (
+                {realOrders.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-4 py-12 text-center text-slate-500"
                     >
-                      لا توجد طلبات بعد
+                      لا توجد طلبات حقيقية بعد
                     </td>
                   </tr>
                 ) : (
-                  orders.map((order: OrderWithProduct) => (
+                  realOrders.map((order: OrderWithProduct) => (
                     <tr
                       key={order.id}
                       className="transition hover:bg-slate-50/80"
@@ -375,6 +421,9 @@ export default async function DashboardPage() {
                       </td>
                       <td className="max-w-xs px-4 py-3 text-slate-600">
                         <span className="line-clamp-2">{order.address}</span>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                        {order.city || "غير محدد"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                         {order.product?.name ?? "—"}

@@ -1,5 +1,5 @@
 const PAGE_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
-/** Prefer numeric Page ID in path (some tokens fail with `me/messages`). */
+/** Prefer numeric Page ID in path (some tokens fail with `me/messages`) */
 const PAGE_ID = process.env.PAGE_ID?.trim();
 const GRAPH_VER = process.env.FB_GRAPH_VERSION?.trim() || "v18.0";
 
@@ -193,7 +193,7 @@ export async function sendQuickReplies(recipientId: string) {
 }
 
 // =====================================================
-// 🛍️ Product Carousel
+// 🛍️ Product Carousel (FIXED payload for "Order Now")
 // =====================================================
 export async function sendProductCarousel(
   recipientId: string,
@@ -214,7 +214,7 @@ export async function sendProductCarousel(
         {
           type: "postback",
           title: "🛍️ اطلب الآن",
-          payload: `ORDER_${p.id}`,
+          payload: `ORDER_NOW_${p.id}`,   // ✅ التصحيح: الآن يبدأ بـ ORDER_NOW_
         },
       ],
     }));
